@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Splitter — текст в список слов</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-bracket">[</span>ws<span class="logo-bracket">]</span>
+      </div>
+      <p class="tagline">текст → список слов</p>
+    </div>
+  </header>
+
+  <main>
+    <div class="layout">
+
+      <!-- INPUT COLUMN -->
+      <section class="panel panel-input">
+        <div class="panel-head">
+          <span class="panel-label">входной текст</span>
+          <button class="btn-ghost" id="btnClear" title="очистить">✕ очистить</button>
+        </div>
+        <textarea
+          id="inputText"
+          placeholder="Вставьте текст сюда…&#10;&#10;Поддерживаются любые языки, переносы строк, табуляция. Нажмите Ctrl+Enter для запуска."
+          spellcheck="false"
+        ></textarea>
+        <div class="input-meta">
+          <span id="metaChars">0 символов</span>
+          <span id="metaWords">0 слов</span>
+        </div>
+      </section>
+
+      <!-- CONTROLS -->
+      <section class="controls">
+        <div class="controls-inner">
+
+          <div class="control-group">
+            <p class="group-label">обработка</p>
+            <label class="toggle">
+              <input type="checkbox" id="optPunct" checked>
+              <span class="toggle-track"></span>
+              <span class="toggle-text">убирать пунктуацию</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="optLower">
+              <span class="toggle-track"></span>
+              <span class="toggle-text">нижний регистр</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="optDupes">
+              <span class="toggle-track"></span>
+              <span class="toggle-text">убрать дубликаты</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="optSort">
+              <span class="toggle-track"></span>
+              <span class="toggle-text">сортировать А–Я</span>
+            </label>
+          </div>
+
+          <div class="control-group">
+            <p class="group-label">формат вывода</p>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="format" value="lines" checked>
+                <span>каждое слово на строке</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="format" value="comma">
+                <span>через запятую</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="format" value="json">
+                <span>JSON массив</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="format" value="numbered">
+                <span>нумерованный список</span>
+              </label>
+            </div>
+          </div>
+
+          <button class="btn-run" id="btnRun">
+            <span>Разобрать</span>
+            <kbd>Ctrl+↵</kbd>
+          </button>
+
+          <div class="divider"></div>
+
+          <div class="control-group">
+            <p class="group-label">перевод на украинский</p>
+            <p class="group-hint">Claude API через Cloudflare Worker</p>
+            <button class="btn-translate" id="btnTranslate">
+              <span id="btnTranslateLabel">Перевести список</span>
+            </button>
+            <p class="translate-status" id="translateStatus"></p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- OUTPUT COLUMNS -->
+      <div class="output-columns">
+
+        <section class="panel panel-output">
+          <div class="panel-head">
+            <span class="panel-label">результат</span>
+            <button class="btn-ghost" id="btnCopy">⎘ скопировать</button>
+          </div>
+          <textarea id="outputText" readonly placeholder="здесь появится результат…" spellcheck="false"></textarea>
+          <div class="output-stats">
+            <div class="stat">
+              <span class="stat-val" id="statTotal">—</span>
+              <span class="stat-key">всего</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat">
+              <span class="stat-val" id="statUnique">—</span>
+              <span class="stat-key">уникальных</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat">
+              <span class="stat-val" id="statLongest">—</span>
+              <span class="stat-key">длиннейшее</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-output panel-uk">
+          <div class="panel-head">
+            <span class="panel-label">украинский</span>
+            <button class="btn-ghost" id="btnCopyUk">⎘ скопировать</button>
+          </div>
+          <textarea id="outputUk" readonly placeholder="нажмите «Перевести список» после разбора…" spellcheck="false"></textarea>
+          <div class="output-stats">
+            <div class="stat">
+              <span class="stat-val" id="statUkWords">—</span>
+              <span class="stat-key">слов</span>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <span>word splitter · open source · <a href="https://github.com" target="_blank">github</a></span>
+  </footer>
+
+  <div id="toastContainer"></div>
+  <script src="app.js"></script>
+</body>
+</html>
