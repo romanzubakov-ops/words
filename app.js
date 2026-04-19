@@ -1,10 +1,13 @@
 /* ============================================================
    WORD SPLITTER — app.js
-   Перевод: MyMemory API (бесплатно, без ключа, до 5000 слов/день)
    ============================================================ */
 
 (function () {
   'use strict';
+
+  // ── CONFIG ────────────────────────────────────────────────
+  // Вставь URL своего Cloudflare Worker:
+  const WORKER_URL = 'https://ancient-shadow-1f82.roman-zubakov.workers.dev';
 
   // ── DOM refs ──────────────────────────────────────────────
   const inputText         = document.getElementById('inputText');
@@ -92,44 +95,31 @@
     statLongest.textContent = longest || '—';
   }
 
-  // ── Translation via MyMemory API ──────────────────────────
-  // Бесплатно, без ключа. Лимит: 5000 слов/день.
-  // Отправляем слова батчами по 30 штук чтобы не превысить лимит символов за запрос.
-
-  const BATCH_SIZE = 30;
-  const SEPARATOR  = '\n';
-
-  async function translateBatch(words) {
-    const q = words.join(SEPARATOR);
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=ru|uk`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.responseStatus !== 200) throw new Error(data.responseDetails || 'API error');
-    // MyMemory returns translated text as a single string — split back
-    return data.responseData.translatedText.split(SEPARATOR);
-  }
+  // ── Translation via Cloudflare Worker → OpenAI ────────────
 
   async function translate() {
     if (!lastWords.length) { showToast('сначала разберите текст'); return; }
 
     btnTranslate.disabled = true;
     btnTranslateLabel.textContent = 'переводим…';
-
-    const total = lastWords.length;
-    let translated = [];
+    translateStatus.textContent = `отправляем ${lastWords.length} слов…`;
 
     try {
-      for (let i = 0; i < total; i += BATCH_SIZE) {
-        const batch = lastWords.slice(i, i + BATCH_SIZE);
-        translateStatus.textContent = `${Math.min(i + BATCH_SIZE, total)} / ${total} слов…`;
-        const result = await translateBatch(batch);
-        translated = translated.concat(result);
-        // Small pause between batches to be polite to the free API
-        if (i + BATCH_SIZE < total) await new Promise(r => setTimeout(r, 300));
+      const res = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: lastWords }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || res.statusText);
       }
 
-      // Format same as original
+      const data = await res.json();
+      if (!Array.isArray(data.words)) throw new Error('неверный ответ от сервера');
+
+      const translated = data.words;
       const fmt = document.querySelector('input[name="format"]:checked').value;
       let output;
       switch (fmt) {
