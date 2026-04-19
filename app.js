@@ -1,31 +1,28 @@
 /* ============================================================
    WORD SPLITTER — app.js
+   Перевод: MyMemory API (бесплатно, без ключа, до 5000 слов/день)
    ============================================================ */
 
 (function () {
   'use strict';
 
-  // ── CONFIG ────────────────────────────────────────────────
-  // После деплоя Cloudflare Worker — вставь URL сюда:
-  const WORKER_URL = 'https://ancient-shadow-1f82.roman-zubakov.workers.dev';
-
   // ── DOM refs ──────────────────────────────────────────────
-  const inputText      = document.getElementById('inputText');
-  const outputText     = document.getElementById('outputText');
-  const outputUk       = document.getElementById('outputUk');
-  const btnRun         = document.getElementById('btnRun');
-  const btnCopy        = document.getElementById('btnCopy');
-  const btnCopyUk      = document.getElementById('btnCopyUk');
-  const btnClear       = document.getElementById('btnClear');
-  const btnTranslate   = document.getElementById('btnTranslate');
+  const inputText         = document.getElementById('inputText');
+  const outputText        = document.getElementById('outputText');
+  const outputUk          = document.getElementById('outputUk');
+  const btnRun            = document.getElementById('btnRun');
+  const btnCopy           = document.getElementById('btnCopy');
+  const btnCopyUk         = document.getElementById('btnCopyUk');
+  const btnClear          = document.getElementById('btnClear');
+  const btnTranslate      = document.getElementById('btnTranslate');
   const btnTranslateLabel = document.getElementById('btnTranslateLabel');
   const translateStatus   = document.getElementById('translateStatus');
-  const metaChars      = document.getElementById('metaChars');
-  const metaWords      = document.getElementById('metaWords');
-  const statTotal      = document.getElementById('statTotal');
-  const statUnique     = document.getElementById('statUnique');
-  const statLongest    = document.getElementById('statLongest');
-  const statUkWords    = document.getElementById('statUkWords');
+  const metaChars         = document.getElementById('metaChars');
+  const metaWords         = document.getElementById('metaWords');
+  const statTotal         = document.getElementById('statTotal');
+  const statUnique        = document.getElementById('statUnique');
+  const statLongest       = document.getElementById('statLongest');
+  const statUkWords       = document.getElementById('statUkWords');
 
   const optPunct = document.getElementById('optPunct');
   const optLower = document.getElementById('optLower');
@@ -34,16 +31,10 @@
 
   // ── Core logic ────────────────────────────────────────────
 
-  // Removes punctuation from word edges only.
-  // Hyphens inside words (во-первых, будь-то) are preserved.
-  // Apostrophes inside words (Ukrainian м'який) are preserved.
   const PUNCT_RE       = /^[«»""''„"‹›\[\]{}()\.\,\!\?\:\;—–\/\\@#\$%\^&\*\+\=<>\|`~''""`]+|[«»""''„"‹›\[\]{}()\.\,\!\?\:\;—–\/\\@#\$%\^&\*\+\=<>\|`~''""`]+$/g;
   const HYPHEN_EDGE_RE = /^-+|-+$/g;
-
-  // Normalizes apostrophe-like chars between non-space chars → U+0027 ' (ASCII, Google-compatible)
-  // Covers: ' ` ʼ ′ ' ' ‚ ‛ ʹ ʻ ʽ ＇
-  const APOS_INNER_RE = /(?<=\S)['\`\u02BC\u2032\u2018\u201A\u201B\u02B9\u02BB\u02BD\uFF07](?=\S)/g;
-  const APOS_TARGET   = '\u0027';
+  const APOS_INNER_RE  = /(?<=\S)['\`\u02BC\u2032\u2018\u201A\u201B\u02B9\u02BB\u02BD\uFF07](?=\S)/g;
+  const APOS_TARGET    = '\u0027';
 
   function splitWords(text) {
     return text.split(/\s+/).filter(w => w.length > 0);
@@ -51,26 +42,15 @@
 
   function processWords(text) {
     let words = splitWords(text);
-
     if (optPunct.checked) {
       words = words
         .map(w => w.replace(APOS_INNER_RE, APOS_TARGET))
         .map(w => w.replace(PUNCT_RE, '').replace(HYPHEN_EDGE_RE, '').trim())
         .filter(w => w.length > 0);
     }
-
-    if (optLower.checked) {
-      words = words.map(w => w.toLowerCase());
-    }
-
-    if (optDupes.checked) {
-      words = [...new Set(words)];
-    }
-
-    if (optSort.checked) {
-      words = words.sort((a, b) => a.localeCompare(b, ['ru', 'uk', 'en'], { sensitivity: 'base' }));
-    }
-
+    if (optLower.checked)  words = words.map(w => w.toLowerCase());
+    if (optDupes.checked)  words = [...new Set(words)];
+    if (optSort.checked)   words = words.sort((a, b) => a.localeCompare(b, ['ru', 'uk', 'en'], { sensitivity: 'base' }));
     return words;
   }
 
@@ -96,12 +76,10 @@
     lastWords = processWords(text);
     outputText.value = formatWords(lastWords);
 
-    // clear old translation
     outputUk.value = '';
     statUkWords.textContent = '—';
     translateStatus.textContent = '';
 
-    // stats
     const rawWords = splitWords(text);
     const uniqueSet = new Set(
       rawWords.map(w => (optPunct.checked ? w.replace(PUNCT_RE, '') : w).toLowerCase())
@@ -114,41 +92,44 @@
     statLongest.textContent = longest || '—';
   }
 
-  // ── Translation ───────────────────────────────────────────
+  // ── Translation via MyMemory API ──────────────────────────
+  // Бесплатно, без ключа. Лимит: 5000 слов/день.
+  // Отправляем слова батчами по 30 штук чтобы не превысить лимит символов за запрос.
+
+  const BATCH_SIZE = 30;
+  const SEPARATOR  = '\n';
+
+  async function translateBatch(words) {
+    const q = words.join(SEPARATOR);
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=ru|uk`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.responseStatus !== 200) throw new Error(data.responseDetails || 'API error');
+    // MyMemory returns translated text as a single string — split back
+    return data.responseData.translatedText.split(SEPARATOR);
+  }
 
   async function translate() {
-    if (!lastWords.length) {
-      showToast('сначала разберите текст');
-      return;
-    }
-
-    if (WORKER_URL.includes('YOUR_WORKER')) {
-      showToast('укажите WORKER_URL в app.js');
-      return;
-    }
+    if (!lastWords.length) { showToast('сначала разберите текст'); return; }
 
     btnTranslate.disabled = true;
     btnTranslateLabel.textContent = 'переводим…';
-    translateStatus.textContent = `отправляем ${lastWords.length} слов…`;
+
+    const total = lastWords.length;
+    let translated = [];
 
     try {
-      const res = await fetch(WORKER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words: lastWords })
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err || res.statusText);
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = lastWords.slice(i, i + BATCH_SIZE);
+        translateStatus.textContent = `${Math.min(i + BATCH_SIZE, total)} / ${total} слов…`;
+        const result = await translateBatch(batch);
+        translated = translated.concat(result);
+        // Small pause between batches to be polite to the free API
+        if (i + BATCH_SIZE < total) await new Promise(r => setTimeout(r, 300));
       }
 
-      const data = await res.json();
-      const translated = data.words;
-
-      if (!Array.isArray(translated)) throw new Error('неверный ответ от сервера');
-
-      // format same as original
+      // Format same as original
       const fmt = document.querySelector('input[name="format"]:checked').value;
       let output;
       switch (fmt) {
@@ -172,7 +153,7 @@
     }
   }
 
-  // ── Input meta (live) ────────────────────────────────────
+  // ── Input meta ────────────────────────────────────────────
 
   function updateMeta() {
     const text  = inputText.value;
@@ -184,7 +165,7 @@
 
   // ── Copy ─────────────────────────────────────────────────
 
-  async function copyText(text, label) {
+  async function copyText(text) {
     if (!text) { showToast('нечего копировать'); return; }
     try {
       await navigator.clipboard.writeText(text);
@@ -196,7 +177,7 @@
       document.execCommand('copy');
       document.body.removeChild(ta);
     }
-    showToast((label || '') + 'скопировано ✓');
+    showToast('скопировано ✓');
   }
 
   // ── Clear ─────────────────────────────────────────────────
@@ -216,7 +197,7 @@
     inputText.focus();
   }
 
-  // ── Toast ────────────────────────────────────────────────
+  // ── Toast ─────────────────────────────────────────────────
 
   function showToast(msg) {
     const container = document.getElementById('toastContainer');
@@ -227,14 +208,13 @@
     setTimeout(() => el.remove(), 2100);
   }
 
-  // ── Event listeners ──────────────────────────────────────
+  // ── Events ────────────────────────────────────────────────
 
   btnRun.addEventListener('click', run);
   btnCopy.addEventListener('click', () => copyText(outputText.value));
   btnCopyUk.addEventListener('click', () => copyText(outputUk.value));
   btnClear.addEventListener('click', clearAll);
   btnTranslate.addEventListener('click', translate);
-
   inputText.addEventListener('input', updateMeta);
   inputText.addEventListener('keydown', e => {
     if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); run(); }
