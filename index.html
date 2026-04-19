@@ -105,6 +105,29 @@
             <p class="translate-status" id="translateStatus"></p>
           </div>
 
+
+          <div class="divider"></div>
+
+          <div class="control-group">
+            <p class="group-label">склонение по падежам</p>
+            <div class="decline-lang-checks">
+              <label class="toggle">
+                <input type="checkbox" id="optDeclRu" checked>
+                <span class="toggle-track"></span>
+                <span class="toggle-text">русский</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="optDeclUk">
+                <span class="toggle-track"></span>
+                <span class="toggle-text">украинский</span>
+              </label>
+            </div>
+            <button class="btn-decline" id="btnDecline">
+              <span id="btnDeclineLabel">Склонять список</span>
+            </button>
+            <p class="translate-status" id="declineStatus"></p>
+          </div>
+
         </div>
       </section>
 
@@ -152,6 +175,14 @@
       </div>
 
     </div>
+    <div class="decline-output" id="declineOutput" style="display:none">
+      <div class="panel-head">
+        <span class="panel-label">падежи</span>
+        <button class="btn-ghost" id="btnCopyDecline">⎘ скопировать всё</button>
+      </div>
+      <div id="declineContent"></div>
+    </div>
+
   </main>
 
   <footer>
