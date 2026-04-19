@@ -198,6 +198,92 @@
     setTimeout(() => el.remove(), 2100);
   }
 
+
+  // ── Declension ────────────────────────────────────────────
+
+  const btnDecline      = document.getElementById('btnDecline');
+  const btnDeclineLabel = document.getElementById('btnDeclineLabel');
+  const declineStatus   = document.getElementById('declineStatus');
+  const declineOutput   = document.getElementById('declineOutput');
+  const declineContent  = document.getElementById('declineContent');
+  const btnCopyDecline  = document.getElementById('btnCopyDecline');
+  const optDeclRu       = document.getElementById('optDeclRu');
+  const optDeclUk       = document.getElementById('optDeclUk');
+
+  async function decline() {
+    if (!lastWords.length) { showToast('сначала разберите текст'); return; }
+
+    const langs = [];
+    if (optDeclRu.checked) langs.push('ru');
+    if (optDeclUk.checked) langs.push('uk');
+    if (!langs.length) { showToast('выберите хотя бы один язык'); return; }
+
+    btnDecline.disabled = true;
+    btnDeclineLabel.textContent = 'склоняем…';
+    declineStatus.textContent = `отправляем ${lastWords.length} слов…`;
+
+    try {
+      const res = await fetch(WORKER_URL + '/decline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: lastWords, langs }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+
+      declineContent.innerHTML = '';
+      const langLabel = { ru: 'русский', uk: 'украинский' };
+
+      for (const lang of langs) {
+        const forms = data[lang];
+        if (!forms || forms.error) continue;
+
+        const lbl = document.createElement('div');
+        lbl.className = 'decline-lang-label';
+        lbl.textContent = langLabel[lang];
+        declineContent.appendChild(lbl);
+
+        for (const word of lastWords) {
+          const block = document.createElement('div');
+          block.className = 'decline-block';
+
+          const wordEl = document.createElement('div');
+          wordEl.className = 'decline-word';
+          wordEl.textContent = word;
+
+          const formsEl = document.createElement('div');
+          formsEl.className = 'decline-forms';
+          formsEl.textContent = forms[word] || '—';
+          formsEl.title = 'нажми чтобы скопировать';
+          formsEl.addEventListener('click', () => copyText(formsEl.textContent));
+
+          block.appendChild(wordEl);
+          block.appendChild(formsEl);
+          declineContent.appendChild(block);
+        }
+      }
+
+      declineOutput.style.display = 'block';
+      declineStatus.textContent = 'готово ✓';
+
+    } catch (e) {
+      declineStatus.textContent = 'ошибка: ' + e.message;
+      showToast('ошибка склонения');
+    } finally {
+      btnDecline.disabled = false;
+      btnDeclineLabel.textContent = 'Склонять список';
+    }
+  }
+
+  function copyAllDecline() {
+    const blocks = declineContent.querySelectorAll('.decline-forms');
+    const text = Array.from(blocks).map(b => b.textContent).join('\n');
+    copyText(text);
+  }
+
+  btnDecline.addEventListener('click', decline);
+  btnCopyDecline.addEventListener('click', copyAllDecline);
+
   // ── Events ────────────────────────────────────────────────
 
   btnRun.addEventListener('click', run);
