@@ -182,6 +182,8 @@
 
   // ── Collect all forms ─────────────────────────────────────
 
+  const COLLECT_BATCH = 50; // слов за один запрос
+
   async function collect() {
     if (!lastWords.length) { showToast('сначала разберите текст'); return; }
 
@@ -192,27 +194,60 @@
 
     btnCollect.disabled = true;
     btnCollectLabel.textContent = 'собираем…';
-    collectStatus.textContent = `склоняем ${lastWords.length} слов на ${langs.join('+')}…`;
+    outputCollect.value = '';
+    panelCollect.style.display = 'none';
+
+    const totalBatches = Math.ceil(lastWords.length / COLLECT_BATCH) * langs.length;
+    let doneBatches = 0;
+    const allForms = new Set();
+    const startTime = Date.now();
+
+    // Таймер — обновляет каждую секунду
+    const timerInterval = setInterval(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+      const pct = totalBatches ? Math.round(doneBatches / totalBatches * 100) : 0;
+      collectStatus.textContent = `батч ${doneBatches}/${totalBatches} · ${pct}% · ${sec}с`;
+    }, 1000);
 
     try {
-      const res = await fetch(WORKER_URL + '/collect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words: lastWords, langs }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      if (!Array.isArray(data.words)) throw new Error('неверный ответ');
+      // Все батчи запускаем параллельно через Promise.all
+      const tasks = [];
+      for (const lang of langs) {
+        for (let i = 0; i < lastWords.length; i += COLLECT_BATCH) {
+          const batch = lastWords.slice(i, i + COLLECT_BATCH);
+          tasks.push({ batch, lang });
+        }
+      }
 
-      outputCollect.value = data.words.join('\n');
-      statCollect.textContent = data.total.toLocaleString('ru');
+      await Promise.all(tasks.map(async ({ batch, lang }) => {
+        const res = await fetch(WORKER_URL + '/collect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ words: batch, lang }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        if (!Array.isArray(data.forms)) throw new Error('неверный ответ');
+        data.forms.forEach(f => allForms.add(f));
+        doneBatches++;
+        const pct = Math.round(doneBatches / totalBatches * 100);
+        const sec = Math.floor((Date.now() - startTime) / 1000);
+        collectStatus.textContent = `батч ${doneBatches}/${totalBatches} · ${pct}% · ${sec}с`;
+      }));
+
+      const sorted = [...allForms].sort((a, b) => a.localeCompare(b, ['ru', 'uk'], { sensitivity: 'base' }));
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+
+      outputCollect.value = sorted.join('\n');
+      statCollect.textContent = sorted.length.toLocaleString('ru');
       panelCollect.style.display = 'flex';
-      collectStatus.textContent = `готово ✓ — ${data.total} форм`;
+      collectStatus.textContent = `готово ✓ — ${sorted.length} форм за ${sec}с`;
 
     } catch (e) {
       collectStatus.textContent = 'ошибка: ' + e.message;
       showToast('ошибка сборки');
     } finally {
+      clearInterval(timerInterval);
       btnCollect.disabled = false;
       btnCollectLabel.textContent = 'Собрать всё';
     }
