@@ -5,42 +5,45 @@
 (function () {
   'use strict';
 
-  // ── CONFIG ────────────────────────────────────────────────
-  // Вставь URL своего Cloudflare Worker:
   const WORKER_URL = 'https://ancient-shadow-1f82.roman-zubakov.workers.dev';
 
   // ── DOM refs ──────────────────────────────────────────────
   const inputText         = document.getElementById('inputText');
   const outputText        = document.getElementById('outputText');
   const outputUk          = document.getElementById('outputUk');
+  const outputCollect     = document.getElementById('outputCollect');
+  const panelCollect      = document.getElementById('panelCollect');
   const btnRun            = document.getElementById('btnRun');
   const btnCopy           = document.getElementById('btnCopy');
   const btnCopyUk         = document.getElementById('btnCopyUk');
+  const btnCopyCollect    = document.getElementById('btnCopyCollect');
   const btnClear          = document.getElementById('btnClear');
   const btnTranslate      = document.getElementById('btnTranslate');
   const btnTranslateLabel = document.getElementById('btnTranslateLabel');
   const translateStatus   = document.getElementById('translateStatus');
+  const btnCollect        = document.getElementById('btnCollect');
+  const btnCollectLabel   = document.getElementById('btnCollectLabel');
+  const collectStatus     = document.getElementById('collectStatus');
   const metaChars         = document.getElementById('metaChars');
   const metaWords         = document.getElementById('metaWords');
   const statTotal         = document.getElementById('statTotal');
   const statUnique        = document.getElementById('statUnique');
   const statLongest       = document.getElementById('statLongest');
   const statUkWords       = document.getElementById('statUkWords');
+  const statCollect       = document.getElementById('statCollect');
 
-  const optPunct = document.getElementById('optPunct');
-  const optLower = document.getElementById('optLower');
-  const optDupes = document.getElementById('optDupes');
-  const optSort      = document.getElementById('optSort');
-  const optStopsFunc = document.getElementById('optStopsFunc');
-  const optStopsInfo = document.getElementById('optStopsInfo');
-
-  // ── Core logic ────────────────────────────────────────────
+  const optPunct      = document.getElementById('optPunct');
+  const optLower      = document.getElementById('optLower');
+  const optDupes      = document.getElementById('optDupes');
+  const optSort       = document.getElementById('optSort');
+  const optStopsFunc  = document.getElementById('optStopsFunc');
+  const optStopsInfo  = document.getElementById('optStopsInfo');
+  const optCollectRu  = document.getElementById('optCollectRu');
+  const optCollectUk  = document.getElementById('optCollectUk');
 
   // ── Stopwords ─────────────────────────────────────────────
 
-  // Предлоги, союзы, частицы, местоимения — Google их игнорирует, минусовать не нужно
   const STOPWORDS_FUNC = new Set([
-    // RU
     'в','во','на','с','со','из','к','ко','по','до','от','ото','за','под','над','при','про',
     'без','безо','через','сквозь','между','среди','около','вокруг','вдоль','напротив',
     'вместо','кроме','помимо','для','ради','насчёт','о','об','обо','у','перед','передо',
@@ -58,7 +61,6 @@
     'другой','другая','другое','другие','такой','такая','такое','такие',
     'очень','более','менее','уже','ещё','тоже','также','потому','поэтому',
     'здесь','там','тут','сюда','туда','из-за','из-под',
-    // UK
     'у','з','із','зі','від','між','серед','біля','навколо','вздовж','замість','крім',
     'окрім','заради','й','та','але','проте','однак','або','чи','ж','б','би','адже',
     'ось','он','навіть','саме','лише','тільки','хоч','хоча','якщо','поки','нехай',
@@ -73,24 +75,21 @@
     'через','для','о','об',
   ]);
 
-  // Информационные слова — для фильтрации информационных запросов
   const STOPWORDS_INFO = new Set([
-    // RU
-    'как','зачем','почему','сколько','где','когда','куда','откуда','кто','что','чей',
-    'какой','какая','какое','какие','который','которая','которое','которые',
-    'отчего','доколе','доколь','насколько','поскольку','постольку',
-    'можно','нельзя','нужно','надо','стоит','следует',
-    'отзыв','отзывы','отзыве','обзор','обзоры','форум','вики','wikipedia',
-    'своими','руками','сам','сама','сами','самому','самостоятельно','бесплатно',
-    'скачать','скачай','загрузить','онлайн','смотреть','читать','слушать',
-    // UK
     'як','навіщо','чому','скільки','де','коли','куди','звідки','хто','що','чий',
-    'який','яка','яке','які','можна','не можна','треба','потрібно','варто','слід',
+    'який','яка','яке','які','можна','треба','потрібно','варто','слід',
     'відгук','відгуки','огляд','огляди','форум','вікі',
     'своїми','руками','сам','сама','самі','самостійно','безкоштовно',
     'завантажити','онлайн','дивитись','читати','слухати',
+    'как','зачем','почему','сколько','где','когда','куда','откуда','кто','что','чей',
+    'какой','какая','какое','какие','который','которая','которое','которые',
+    'можно','нельзя','нужно','надо','стоит','следует',
+    'отзыв','отзывы','обзор','обзоры','форум','вики','wikipedia',
+    'своими','руками','самому','самостоятельно','бесплатно',
+    'скачать','загрузить','онлайн','смотреть','читать','слушать',
   ]);
 
+  // ── Core logic ────────────────────────────────────────────
 
   const PUNCT_RE       = /^[«»""''„"‹›\[\]{}()\.\,\!\?\:\;—–\/\\@#\$%\^&\*\+\=<>\|`~''""`]+|[«»""''„"‹›\[\]{}()\.\,\!\?\:\;—–\/\\@#\$%\^&\*\+\=<>\|`~''""`]+$/g;
   const HYPHEN_EDGE_RE = /^-+|-+$/g;
@@ -109,11 +108,11 @@
         .map(w => w.replace(PUNCT_RE, '').replace(HYPHEN_EDGE_RE, '').trim())
         .filter(w => w.length > 0);
     }
-    if (optLower.checked)  words = words.map(w => w.toLowerCase());
-    if (optDupes.checked)  words = [...new Set(words)];
+    if (optLower.checked)      words = words.map(w => w.toLowerCase());
+    if (optDupes.checked)      words = [...new Set(words)];
     if (optSort.checked)       words = words.sort((a, b) => a.localeCompare(b, ['ru', 'uk', 'en'], { sensitivity: 'base' }));
-    if (optStopsFunc && optStopsFunc.checked) words = words.filter(w => !STOPWORDS_FUNC.has(w.toLowerCase()));
-    if (optStopsInfo && optStopsInfo.checked) words = words.filter(w => !STOPWORDS_INFO.has(w.toLowerCase()));
+    if (optStopsFunc.checked)  words = words.filter(w => !STOPWORDS_FUNC.has(w.toLowerCase()));
+    if (optStopsInfo.checked)  words = words.filter(w => !STOPWORDS_INFO.has(w.toLowerCase()));
     return words;
   }
 
@@ -138,68 +137,84 @@
 
     lastWords = processWords(text);
     outputText.value = formatWords(lastWords);
-
     outputUk.value = '';
+    outputCollect.value = '';
+    panelCollect.style.display = 'none';
     statUkWords.textContent = '—';
+    statCollect.textContent = '—';
     translateStatus.textContent = '';
+    collectStatus.textContent = '';
 
-    const rawWords = splitWords(text);
-    const uniqueSet = new Set(
-      rawWords.map(w => (optPunct.checked ? w.replace(PUNCT_RE, '') : w).toLowerCase())
-              .filter(w => w.length > 0)
-    );
-    const longest = lastWords.reduce((max, w) => w.length > max.length ? w : max, '');
-
+    const uniqueSet = new Set(lastWords.map(w => w.toLowerCase()));
+    const longest   = lastWords.reduce((max, w) => w.length > max.length ? w : max, '');
     statTotal.textContent   = lastWords.length.toLocaleString('ru');
     statUnique.textContent  = uniqueSet.size.toLocaleString('ru');
     statLongest.textContent = longest || '—';
   }
 
-  // ── Translation via Cloudflare Worker → OpenAI ────────────
+  // ── Translate ─────────────────────────────────────────────
 
   async function translate() {
     if (!lastWords.length) { showToast('сначала разберите текст'); return; }
-
     btnTranslate.disabled = true;
     btnTranslateLabel.textContent = 'переводим…';
-    translateStatus.textContent = `отправляем ${lastWords.length} слов…`;
-
+    translateStatus.textContent = `${lastWords.length} слов…`;
     try {
       const res = await fetch(WORKER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ words: lastWords }),
       });
-
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err || res.statusText);
-      }
-
+      if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      if (!Array.isArray(data.words)) throw new Error('неверный ответ от сервера');
-
-      const translated = data.words;
-      const fmt = document.querySelector('input[name="format"]:checked').value;
-      let output;
-      switch (fmt) {
-        case 'lines':    output = translated.join('\n'); break;
-        case 'comma':    output = translated.join(', '); break;
-        case 'json':     output = JSON.stringify(translated, null, 2); break;
-        case 'numbered': output = translated.map((w, i) => `${i + 1}. ${w}`).join('\n'); break;
-        default:         output = translated.join('\n');
-      }
-
-      outputUk.value = output;
-      statUkWords.textContent = translated.length.toLocaleString('ru');
+      if (!Array.isArray(data.words)) throw new Error('неверный ответ');
+      outputUk.value = formatWords(data.words);
+      statUkWords.textContent = data.words.length.toLocaleString('ru');
       translateStatus.textContent = 'готово ✓';
-
     } catch (e) {
       translateStatus.textContent = 'ошибка: ' + e.message;
       showToast('ошибка перевода');
     } finally {
       btnTranslate.disabled = false;
       btnTranslateLabel.textContent = 'Перевести список';
+    }
+  }
+
+  // ── Collect all forms ─────────────────────────────────────
+
+  async function collect() {
+    if (!lastWords.length) { showToast('сначала разберите текст'); return; }
+
+    const langs = [];
+    if (optCollectRu.checked) langs.push('ru');
+    if (optCollectUk.checked) langs.push('uk');
+    if (!langs.length) { showToast('выберите хотя бы один язык'); return; }
+
+    btnCollect.disabled = true;
+    btnCollectLabel.textContent = 'собираем…';
+    collectStatus.textContent = `склоняем ${lastWords.length} слов на ${langs.join('+')}…`;
+
+    try {
+      const res = await fetch(WORKER_URL + '/collect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: lastWords, langs }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (!Array.isArray(data.words)) throw new Error('неверный ответ');
+
+      outputCollect.value = data.words.join('\n');
+      statCollect.textContent = data.total.toLocaleString('ru');
+      panelCollect.style.display = 'flex';
+      collectStatus.textContent = `готово ✓ — ${data.total} форм`;
+
+    } catch (e) {
+      collectStatus.textContent = 'ошибка: ' + e.message;
+      showToast('ошибка сборки');
+    } finally {
+      btnCollect.disabled = false;
+      btnCollectLabel.textContent = 'Собрать всё';
     }
   }
 
@@ -217,15 +232,11 @@
 
   async function copyText(text) {
     if (!text) { showToast('нечего копировать'); return; }
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
       const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
     }
     showToast('скопировано ✓');
   }
@@ -233,124 +244,34 @@
   // ── Clear ─────────────────────────────────────────────────
 
   function clearAll() {
-    inputText.value  = '';
-    outputText.value = '';
-    outputUk.value   = '';
+    inputText.value = ''; outputText.value = ''; outputUk.value = ''; outputCollect.value = '';
     lastWords = [];
-    metaChars.textContent   = '0 символов';
-    metaWords.textContent   = '0 слов';
-    statTotal.textContent   = '—';
-    statUnique.textContent  = '—';
-    statLongest.textContent = '—';
-    statUkWords.textContent = '—';
-    translateStatus.textContent = '';
+    panelCollect.style.display = 'none';
+    metaChars.textContent = '0 символов'; metaWords.textContent = '0 слов';
+    statTotal.textContent = '—'; statUnique.textContent = '—'; statLongest.textContent = '—';
+    statUkWords.textContent = '—'; statCollect.textContent = '—';
+    translateStatus.textContent = ''; collectStatus.textContent = '';
     inputText.focus();
   }
 
   // ── Toast ─────────────────────────────────────────────────
 
   function showToast(msg) {
-    const container = document.getElementById('toastContainer');
     const el = document.createElement('div');
-    el.className   = 'toast';
-    el.textContent = msg;
-    container.appendChild(el);
+    el.className = 'toast'; el.textContent = msg;
+    document.getElementById('toastContainer').appendChild(el);
     setTimeout(() => el.remove(), 2100);
   }
-
-
-  // ── Declension ────────────────────────────────────────────
-
-  const btnDecline      = document.getElementById('btnDecline');
-  const btnDeclineLabel = document.getElementById('btnDeclineLabel');
-  const declineStatus   = document.getElementById('declineStatus');
-  const declineOutput   = document.getElementById('declineOutput');
-  const declineContent  = document.getElementById('declineContent');
-  const btnCopyDecline  = document.getElementById('btnCopyDecline');
-  const optDeclRu       = document.getElementById('optDeclRu');
-  const optDeclUk       = document.getElementById('optDeclUk');
-
-  async function decline() {
-    if (!lastWords.length) { showToast('сначала разберите текст'); return; }
-
-    const langs = [];
-    if (optDeclRu.checked) langs.push('ru');
-    if (optDeclUk.checked) langs.push('uk');
-    if (!langs.length) { showToast('выберите хотя бы один язык'); return; }
-
-    btnDecline.disabled = true;
-    btnDeclineLabel.textContent = 'склоняем…';
-    declineStatus.textContent = `отправляем ${lastWords.length} слов…`;
-
-    try {
-      const res = await fetch(WORKER_URL + '/decline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words: lastWords, langs }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-
-      declineContent.innerHTML = '';
-      const langLabel = { ru: 'русский', uk: 'украинский' };
-
-      for (const lang of langs) {
-        const forms = data[lang];
-        if (!forms || forms.error) continue;
-
-        const lbl = document.createElement('div');
-        lbl.className = 'decline-lang-label';
-        lbl.textContent = langLabel[lang];
-        declineContent.appendChild(lbl);
-
-        for (const word of lastWords) {
-          const block = document.createElement('div');
-          block.className = 'decline-block';
-
-          const wordEl = document.createElement('div');
-          wordEl.className = 'decline-word';
-          wordEl.textContent = word;
-
-          const formsEl = document.createElement('div');
-          formsEl.className = 'decline-forms';
-          formsEl.textContent = forms[word] || '—';
-          formsEl.title = 'нажми чтобы скопировать';
-          formsEl.addEventListener('click', () => copyText(formsEl.textContent));
-
-          block.appendChild(wordEl);
-          block.appendChild(formsEl);
-          declineContent.appendChild(block);
-        }
-      }
-
-      declineOutput.style.display = 'block';
-      declineStatus.textContent = 'готово ✓';
-
-    } catch (e) {
-      declineStatus.textContent = 'ошибка: ' + e.message;
-      showToast('ошибка склонения');
-    } finally {
-      btnDecline.disabled = false;
-      btnDeclineLabel.textContent = 'Склонять список';
-    }
-  }
-
-  function copyAllDecline() {
-    const blocks = declineContent.querySelectorAll('.decline-forms');
-    const text = Array.from(blocks).map(b => b.textContent).join('\n');
-    copyText(text);
-  }
-
-  btnDecline.addEventListener('click', decline);
-  btnCopyDecline.addEventListener('click', copyAllDecline);
 
   // ── Events ────────────────────────────────────────────────
 
   btnRun.addEventListener('click', run);
   btnCopy.addEventListener('click', () => copyText(outputText.value));
   btnCopyUk.addEventListener('click', () => copyText(outputUk.value));
+  btnCopyCollect.addEventListener('click', () => copyText(outputCollect.value));
   btnClear.addEventListener('click', clearAll);
   btnTranslate.addEventListener('click', translate);
+  btnCollect.addEventListener('click', collect);
   inputText.addEventListener('input', updateMeta);
   inputText.addEventListener('keydown', e => {
     if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); run(); }
