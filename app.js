@@ -182,7 +182,7 @@
 
   // ── Collect all forms ─────────────────────────────────────
 
-  const COLLECT_BATCH = 50; // слов за один запрос
+  const COLLECT_BATCH = 20; // слов за один запрос
 
   async function collect() {
     if (!lastWords.length) { showToast('сначала разберите текст'); return; }
